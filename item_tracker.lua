@@ -15,7 +15,7 @@
 
 ItemTracker = {
   name = "DM Item Tracker",
-  version = "1.0.0",
+  version = "1.0.1",
   author = "mudzereli",
 
   -- -------------------------------------------------------------------------
@@ -330,11 +330,14 @@ function ItemTracker.showTooltip(name)
   local headerHeight = headerCharH
 
   local preview = {}
-  for _, item in ipairs(list) do
+  for idx, item in ipairs(list) do
     if item.details then
       for line in item.details:gmatch("[^\n]+") do
         preview[#preview + 1] = line
       end
+    end
+    if idx < #list then
+      preview[#preview+1] = "\n"
     end
   end
 
@@ -363,8 +366,8 @@ function ItemTracker.showTooltip(name)
   t.height = totalHeight
   
   clearWindow(t.win)
-
-  for _, item in ipairs(list) do
+  
+  for idx, item in ipairs(list) do
     clearWindow(t.header)
     cecho(
         t.header,
@@ -374,6 +377,9 @@ function ItemTracker.showTooltip(name)
       cecho(
         t.win, 
         s.tooltipItemDetailsColor .. item.details .. "\n")
+    end
+    if idx < #list then
+      cecho(t.win,"\n")
     end
   end
 
