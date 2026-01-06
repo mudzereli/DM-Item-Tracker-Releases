@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<title>Dark Mists Item Viewer</title>
+
+<!-- TODO 
+  - maybe some way to "hide" items?
+  - custom per-flag colors in affects/weapon/restrict flags (originally i thought icons but idk this might be too weird in different browsers)
+-->
+
+<!-- Bootstrap -->
+<link
+  href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+  rel="stylesheet"
+/>
+
+<style>
+/* ===== Small visual tweaks only ===== */
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+
+th {
+  cursor: pointer;
+  user-select: none;
+}
+
+th .sort {
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+select[multiple] {
+  min-height: 96px;
+}
+
+.form-text {
+  font-size: 0.72rem;
+  opacity: 0.8;
+}
+
+.mud-output {
+  display: block;
+  width: 100%;
+  background: #000;
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.item-toggle {
+  font-size: 14px;
+  font-weight: 444;
+  cursor: pointer;
+}
+
+.item-toggle:hover {
+  text-decoration: underline;
+}
+
+.table > tbody > tr.item-row.striped {
+  --bs-table-bg: rgba(255, 255, 255, 0.06);
+}
+
+tr.item-row:hover {
+  outline: 1px solid rgba(255,255,255,0.08);
+}
+
+.item-toggle::after {
+  content: " ⮞";
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+tr.item-row:hover .item-toggle::after {
+  opacity: 0.6;
+}
+
+td.meta {
+  color: #9aa0a6;
+  font-size: 0.85em;
+}
+
+td.stat {
+  font-weight: 600;
+}
+
+th.grouped {
+  text-align: center;
+  font-size: 0.75em;
+  opacity: 0.75;
+}
+
+[data-bs-theme="dark"] {
+  --stat-hit:   #7dd3fc;
+  --stat-dam:   #fca5a5;
+  --stat-hp:    #86efac;
+  --stat-ac:    #fde68a;
+  --stat-spell: #c084fc;
+  --stat-holy:  #fde68a;
+}
+
+[data-bs-theme="light"] {
+  --stat-hit:   #0369a1; /* deep blue */
+  --stat-dam:   #b91c1c; /* deep red */
+  --stat-hp:    #15803d; /* deep green */
+  --stat-ac:    #a16207; /* dark gold */
+  --stat-spell: #6d28d9; /* royal purple */
+  --stat-holy:  #a16207; /* divine gold */
+}
+
+.stat.hit   { color: var(--stat-hit); }
+.stat.dam   { color: var(--stat-dam); }
+.stat.hp    { color: var(--stat-hp); }
+.stat.ac    { color: var(--stat-ac); }
+.stat.spell { color: var(--stat-spell); }
+.stat.holy  { color: var(--stat-holy); }
+
+</style>
+
+<link rel="icon" href="data:image/svg+xml,
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+  <text y='.9em' font-size='90'>🔮</text>
+</svg>">
+</head>
+
+<body>
+
+<div class="container-xl py-3">
+
+  <!-- ===== Header ===== -->
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h1 class="h4 mb-0">⚔ Dark Mists Item Viewer</h1>
+    <button id="themeToggle" class="btn btn-sm btn-outline-secondary">🌙 Dark</button>
+  </div>
+
+  <!-- ===== File Input ===== -->
+  <div id="loadSection" class="mb-3">
+    <input
+      type="file"
+      id="fileInput"
+      class="form-control form-control-sm"
+      accept=".json"
+    >
+  </div>
+
+  <div id="app" class="d-none">
+    <!-- ===== Text Search ===== -->
+    <div class="row mb-2">
+      <div class="col-12">
+        <div class="card border-start border-3 border-secondary">
+          <div class="card-body py-2">
+            <h6 class="text-secondary mb-2">🔍 Text Search</h6>
+
+            <input
+              id="search"
+              class="form-control form-control-sm"
+              placeholder="Name, stats, flags, description, etc…">
+
+            <div class="form-text">
+              Searches full item text (name, stats, flags, description)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Advanced Filters ===== -->
+
+    <div id="advancedFilters" class="collapse">
+      <div class="row g-2 mb-2">
+
+        <!-- LEFT COLUMN -->
+        <div class="col-12 col-lg-5 d-flex flex-column gap-2">
+
+          <!-- AREA -->
+          <div class="card border-start border-3 border-info">
+            <div class="card-body py-2">
+              <h6 class="text-secondary mb-2">🗺 Area</h6>
+
+              <label class="form-label small">Area</label>
+              <select id="areaFilter" class="form-select form-select-sm mb-1">
+                <option value="">All</option>
+              </select>
+              <div class="form-text mb-2">
+                Only areas matching other filters are shown
+              </div>
+
+              <label class="form-label small">Sort By</label>
+              <select id="areaSort" class="form-select form-select-sm">
+                <option value="alpha">Alphabetical</option>
+                <option value="count"># of Items</option>
+                <option value="avg">Avg Item Level</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- WEAPON -->
+          <div class="card border-start border-3 border-warning">
+            <div class="card-body py-2">
+              <h6 class="text-secondary mb-2">🗡 Weapon</h6>
+
+              <label class="form-label small">Weapon Type</label>
+              <div class="dropdown mb-2">
+                <button
+                  class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start"
+                  data-bs-toggle="dropdown"
+                  id="weaponTypeBtn">
+                  Weapon Type
+                </button>
+
+                <div class="dropdown-menu p-2" style="max-height:200px;overflow:auto">
+                  <div id="weaponTypeOptions"></div>
+                  <div class="dropdown-divider"></div>
+                  <button type="button" class="btn btn-sm btn-link text-primary w-100" onclick="checkAllWeaponTypes()">All</button>
+                  <button type="button" class="btn btn-sm btn-link text-danger w-100" onclick="clearWeaponTypes()">None</button>
+                </div>
+              </div>
+
+              <div class="form-text mb-2">
+                Sword, Axe, Mace, etc.
+              </div>
+
+              <label class="form-label small">Average Weapon Damage</label>
+              <div class="d-flex gap-1 mb-1">
+                <input id="minAvgDmg" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 15)">
+                <input id="maxAvgDmg" type="number" class="form-control form-control-sm" placeholder="Max (e.g. 33)">
+              </div>
+
+              <div class="form-text mb-2">
+                Dice average (e.g. 2d6 → 7)
+              </div>
+
+              <label class="form-label small">Weapon Flags</label>
+              <select id="weaponFlags" class="form-select form-select-sm" multiple></select>
+              <div class="form-text">
+                Item must match <strong>all</strong> selected flags<br>
+                Use <code>ctrl + click</code> to select / deselect multiple flags
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="col-12 col-lg-7">
+          <div class="card h-100 border-start border-3 border-success">
+            <div class="card-body py-2">
+
+              <h6 class="text-secondary mb-2">🛡 Stats & Slots</h6>
+
+              <!-- ITEM IDENTITY -->
+              <div class="border rounded p-2 mb-2">
+                <h6 class="small text-secondary mb-2">Item Identity</h6>
+
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Item Level</label>
+                    <div class="d-flex gap-1 mb-2">
+                      <input id="minLevel" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 20)">
+                      <input id="maxLevel" type="number" class="form-control form-control-sm" placeholder="Max (e.g. 53)">
+                    </div>
+                    <div class="form-text">
+                      Inclusive range
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label small">Material</label>
+                    <div class="dropdown">
+                      <button
+                        class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start"
+                        data-bs-toggle="dropdown"
+                        id="materialBtn">
+                        Material
+                      </button>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm mb-2"
+                        placeholder="Filter materials…"
+                        id="materialFilterText"
+                        oninput="
+                          const q = this.value.toLowerCase();
+                          document.querySelectorAll('#materialOptions .form-check').forEach(d => {
+                            d.style.display = d.textContent.toLowerCase().includes(q) ? '' : 'none';
+                          });
+                        ">
+                      <div class="dropdown-menu p-2" style="max-height:200px;overflow:auto">
+                        <div id="materialOptions"></div>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="btn btn-sm btn-link text-primary w-100" onclick="checkAllMaterialTypes()">All</button>
+                        <button type="button" class="btn btn-sm btn-link text-danger w-100" onclick="clearAllMaterialTypes()">None</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Wear Slot</label>
+                    <div class="dropdown">
+                      <button
+                        class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start"
+                        data-bs-toggle="dropdown"
+                        id="wearSlotBtn">
+                        Wear Slot
+                      </button>
+
+                      <div class="dropdown-menu p-2" style="max-height:220px;overflow:auto">
+                        <div id="wearSlotOptions"></div>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="btn btn-sm btn-link text-primary w-100" onclick="checkWearSlots()">All</button>
+                        <button type="button" class="btn btn-sm btn-link text-danger w-100" onclick="clearWearSlots()">None</button>
+                      </div>
+                      <div class="form-text">
+                        Guessed from data
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-6">
+                    <label class="form-label small">Item Type</label>
+                    <div class="dropdown">
+                      <button
+                        class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 text-start"
+                        data-bs-toggle="dropdown"
+                        id="typeBtn">
+                        Item Type
+                      </button>
+
+                      <div class="dropdown-menu p-2" style="max-height:200px;overflow:auto">
+                        <div id="typeOptions"></div>
+                        <div class="dropdown-divider"></div>
+                        <button type="button" class="btn btn-sm btn-link text-primary w-100" onclick="checkAllTypes()">All</button>
+                        <button type="button" class="btn btn-sm btn-link text-danger w-100" onclick="clearAllTypes()">None</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CHARACTER STATS -->
+              <div class="border rounded p-2 mb-2">
+                <h6 class="small text-secondary mb-2">Character Stats</h6>
+
+                <div class="row g-2 mb-2">
+                  <div class="col-6">
+                    <label class="form-label small">Avg Armor Class</label>
+                    <div class="d-flex gap-1">
+                      <input id="minAC" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 5)">
+                      <input id="maxAC" type="number" class="form-control form-control-sm" placeholder="Max (e.g. 30)">
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row g-2">
+                  <div class="col-4">
+                    <label class="form-label small">Hitroll</label>
+                    <input id="minHit" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 3)">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">Damroll</label>
+                    <input id="minDmg" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 3)">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">Hit Points</label>
+                    <input id="minHP" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 15)">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">Spellpower</label>
+                    <input id="minSpell" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 2)">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">Holy Power</label>
+                    <input id="minHoly" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 2)">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label small">Mana</label>
+                    <input id="minMana" type="number" class="form-control form-control-sm" placeholder="Min (e.g. 15)">
+                  </div>
+                  <div class="form-text mt-1">
+                    Minimum bonus applied by item
+                  </div>
+                </div>
+              </div>
+
+              <!-- FLAGS -->
+              <div class="border rounded p-2">
+                <h6 class="small text-secondary mb-2">Flags</h6>
+
+                <label class="form-label small">Affect Flags</label>
+                <select id="affectFlags" class="form-select form-select-sm mb-2" multiple></select>
+
+                <label class="form-label small">Restrict Flags</label>
+                <select id="restrictFlags" class="form-select form-select-sm" multiple></select>
+
+                <div class="form-text">
+                  Item must match <strong>all</strong> selected flags<br>
+                  Use <code>ctrl + click</code> to select / deselect multiple flags
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="activeFilters" class="mb-2 small"></div>
+
+    <button
+      class="btn btn-sm btn-outline-secondary"
+      data-bs-toggle="collapse"
+      data-bs-target="#advancedFilters"
+      aria-expanded="false">
+      Advanced Filters
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-sm btn-outline-danger"
+      onclick="clearAllFilters()">
+      Clear All Filters
+    </button>
+
+    <!-- ===== Stats ===== -->
+    <div id="stats" class="small text-muted mb-2">
+      <span class="badge text-bg-secondary">Loading…</span>
+    </div>
+
+    <!-- ===== Table ===== -->
+    <div class="table-responsive border rounded">
+      <table class="table table-hover table-striped table-sm mb-0">
+        <thead>
+          <tr>
+            <th colspan="5" class="grouped">General</th>
+            <th colspan="3" class="grouped">Combat</th>
+            <th colspan="6" class="grouped">Character</th>
+          </tr>
+          <tr>
+            <th data-key="name">Name<span class="sort"></span></th>
+            <th data-key="level" class="text-end">Lvl<span class="sort"></span></th>
+            <th data-key="area">Area<span class="sort"></span></th>
+            <th data-key="material">Material<span class="sort"></span></th>
+            <th data-key="wearSlot">Slot<span class="sort"></span></th>
+            <th data-key="weaponType">Type<span class="sort"></span></th>
+            <th data-key="avgDamage" class="text-end">AvgDam<span class="sort"></span></th>
+            <th data-key="weaponFlags">Flags<span class="sort"></span></th>
+            <th data-key="hitRoll" class="text-end">Hit<span class="sort"></span></th>
+            <th data-key="dmgRoll" class="text-end">Dam<span class="sort"></span></th>
+            <th data-key="spellPower" class="text-end">Spell<span class="sort"></span></th>
+            <th data-key="holyPower" class="text-end">Holy<span class="sort"></span></th>
+            <th data-key="hp" class="text-end">Health<span class="sort"></span></th>
+            <th data-key="avgArmorClass" class="text-end">AvgAC<span class="sort"></span></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/* =========================================================
+   Globals & Helpers
+   ========================================================= */
+let items = [], sortKey = null, sortAsc = true;
+let areaStats = {};
+
+const $ = id => document.getElementById(id);
+const tbody = document.querySelector('tbody');
+const stats = $('stats');
+
+/* =========================================================
+   UI Helpers (checkbox dropdowns)
+   ========================================================= */
+function updateWearSlotButton() {
+  const count = document.querySelectorAll('#wearSlotOptions input:checked').length;
+  $('wearSlotBtn').textContent = count ? `Wear Slot (${count})` : 'Wear Slot';
+}
+
+function clearWearSlots() {
+  document.querySelectorAll('#wearSlotOptions input').forEach(cb => cb.checked = false);
+  updateWearSlotButton();
+  render();
+}
+
+function checkWearSlots() {
+  document.querySelectorAll('#wearSlotOptions input').forEach(cb => cb.checked = true);
+  updateWearSlotButton();
+  render();
+}
+
+function updateTypeButton() {
+  const count = document.querySelectorAll('#typeOptions input:checked').length;
+  $('typeBtn').textContent = count ? `Item Type (${count})` : 'Item Type';
+}
+
+function checkAllTypes() {
+  document.querySelectorAll('#typeOptions input').forEach(cb => cb.checked = true);
+  updateTypeButton();
+  render();
+}
+
+function clearAllTypes() {
+  document.querySelectorAll('#typeOptions input').forEach(cb => cb.checked = false);
+  updateTypeButton();
+  render();
+}
+
+function updateWeaponTypeButton() {
+  const count = document.querySelectorAll('#weaponTypeOptions input:checked').length;
+  $('weaponTypeBtn').textContent = count ? `Weapon Type (${count})` : 'Weapon Type';
+}
+
+function checkAllWeaponTypes() {
+  document.querySelectorAll('#weaponTypeOptions input').forEach(cb => cb.checked = true);
+  updateWeaponTypeButton();
+  render();
+}
+
+function clearWeaponTypes() {
+  document.querySelectorAll('#weaponTypeOptions input').forEach(cb => cb.checked = false);
+  updateWeaponTypeButton();
+  render();
+}
+
+function updateMaterialButton() {
+  const count = document.querySelectorAll('#materialOptions input:checked').length;
+  $('materialBtn').textContent = count ? `Material (${count})` : 'Material';
+}
+
+function checkAllMaterialTypes() {
+  document.querySelectorAll('#materialOptions input').forEach(cb => cb.checked = true);
+  updateMaterialButton();
+  render();
+}
+
+function clearAllMaterialTypes() {
+  document.querySelectorAll('#materialOptions input').forEach(cb => cb.checked = false);
+  updateMaterialButton();
+  render();
+}
+
+function clearAllFilters() {
+  // IMPORTANT: do NOT blank out checkbox "value" attributes.
+  // The old implementation cleared every non-file <input>'s .value,
+  // which accidentally set dropdown checkbox values (e.g. "axe") to "",
+  // so future selections looked "active" but had an empty value.
+
+  // Clear text/number inputs (NOT file, NOT checkboxes/radios)
+  document.querySelectorAll('input').forEach(i => {
+    if (i.type === 'file') return;
+    if (i.type === 'checkbox' || i.type === 'radio') {
+      i.checked = false;
+      return;
+    }
+    i.value = '';
+  });
+
+  // reset single-selects explicitly
+  $('areaFilter').value = '';
+  $('areaSort').value = 'alpha';
+
+  // reset multi-select weapon flags properly
+  [...$('weaponFlags').options].forEach(o => o.selected = false);
+
+  // reset multi-select affect flags properly
+  [...$('affectFlags').options].forEach(o => o.selected = false);
+
+  // reset multi-select affect flags properly
+  [...$('restrictFlags').options].forEach(o => o.selected = false);
+
+  // checkbox dropdowns (explicit, in case they weren't caught above)
+  document.querySelectorAll('#wearSlotOptions input').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#typeOptions input').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#weaponTypeOptions input').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#materialOptions input').forEach(cb => cb.checked = false);
+
+  // update button labels
+  updateWearSlotButton();
+  updateTypeButton();
+  updateWeaponTypeButton();
+
+  // rebuild dependent UI once
+  populateAreaFilter();
+  render();
+}
+
+
+ /* =========================================================
+   Parsing & Stats
+   ========================================================= */
+function avgDice(d) {
+  const m = d?.match(/(\d+)d(\d+)/);
+  return m ? (Number(m[1]) * (Number(m[2]) + 1)) / 2 : null;
+}
+
+function computeAreaStats() {
+  areaStats = {};
+  items.forEach(i => {
+    if (!i.area || i.level == null) return;
+    areaStats[i.area] ??= { sum: 0, count: 0 };
+    areaStats[i.area].sum += i.level;
+    areaStats[i.area].count++;
+  });
+  Object.values(areaStats).forEach(a => a.avgLevel = Math.round(a.sum / a.count));
+}
+
+function inferWearSlot(item) {
+  const n = item.name.toLowerCase();
+  if (item.type === 'light') return 'light';
+  if (item.type === 'weapon') return 'wielded';
+  if (item.type === 'wand') return 'wielded';
+  if (item.type === 'staff') return 'wielded';
+  if (item.type === 'fishing_pole') return 'wielded';
+  if (/amulet|necklace|torc|cloak|collar|neck|talisman/.test(n)) return 'neck';
+  if (/helm|helmet|crown|circlet|cowl/.test(n)) return 'head';
+  if (/mask|goggles|visor|spectacles|glasses/.test(n)) return 'eyes';
+  if (/surcoat|cape|mantle|robe|jacket|tunic/.test(n)) return 'body';
+  if (/belt|girdle|sash|girth/.test(n)) return 'waist';
+  if (/boots|shoes|slippers|sandals/.test(n)) return 'feet';
+  if (/greaves|leggings|pant|legplate|breeches|leg guards|skirt/.test(n)) return 'legs';
+  if (/gloves|gauntlets|mitt/.test(n)) return 'hands';
+  if (/sleeves|vambrace|armguard/.test(n)) return 'arms';
+  if (/bracer|bracelet|wrist/.test(n)) return 'wrist';
+  if (/ear|hoop/.test(n)) return 'ear';
+  if (/shield|buckler/.test(n)) return 'shield';
+  if (/ring|signet/.test(n)) return 'finger';
+  if (/breastplate|platemail|chainmail|vest|chest|splintmail|battlemail|battle armor/.test(n)) return 'torso';
+  return 'unknown';
+}
+
+let itemId = 0;
+function parseItem(raw) {
+  const id = `item-${itemId++}`;
+  const dmg = raw.match(/Damage is ([^ ]+)/)?.[1];
+
+  /* =========================================================
+     Affect & Immunity Parsing (robust, explicit)
+     ========================================================= */
+
+  const affectSet = new Set();
+
+  raw.split('\n').forEach(line => {
+    line = line.trim();
+
+    /* ---------- AFFECTS ----------
+       Example:
+       Adds detect_evil sanctuary protect_good flying haste affect
+    */
+    if (/^Adds\s+.+\s+affect\b/i.test(line)) {
+      const body = line
+        .replace(/^Adds\s+/i, '')
+        .replace(/\s+affect\b[\s\.\!]*$/i, ''); // remove " affect" + trailing punctuation/spaces
+
+      body.split(/\s+/).map(f => f.toLowerCase()).forEach(f => affectSet.add(f));
+    }
+
+    /* ---------- IMMUNITIES ----------
+       Example:
+       Adds immunity to magic weapon fire cold
+    */
+    if (/^Adds immunity to\s+/i.test(line)) {
+      const body = line
+        .replace(/^Adds immunity to\s+/i, '')
+        .replace(/[\s\.\!]*$/i, ''); // remove trailing punctuation/spaces only
+
+      body.split(/\s+/).map(f => `immune_${f.toLowerCase()}`).forEach(f => affectSet.add(f));
+    }
+
+  });
+
+
+  const acMatch = raw.match(
+    /Armor class is\s+(\d+)\s+pierce,\s*(\d+)\s+bash,\s*(\d+)\s+slash,\s*and\s*(\d+)\s+vs\. magic/i
+  );
+ const baseAC = acMatch
+    ? (Number(acMatch[1]) + Number(acMatch[2]) + Number(acMatch[3]) + Number(acMatch[4])) / 4
+    : null;
+
+  const acAffect = raw.match(/Affects armor class by (-?\d+)/i)
+    ? Number(RegExp.$1)
+    : null;
+
+  const avgArmorClass = (baseAC ?? 0) + (acAffect ? -acAffect : 0);
+
+  const item = {
+    id,
+    raw,
+    area: raw.match(/^Area:\s*(.+)$/m)?.[1] ?? '',
+    name: raw.match(/Object\s+'(.+?)'\s+is\s+type/)?.[1] ?? '',
+    type: raw.match(/is\s+type\s+([a-zA-Z_]+)/)?.[1] ?? '',
+    level: Number(raw.match(/level is (\d+)/)?.[1] ?? 0),
+    weaponType: raw.match(/Weapon type is ([^\.\n]+)/)?.[1] ?? '',
+    weaponFlags: raw.match(/Weapons flags: ([^\n]+)/)?.[1]?.split(/\s+/) ?? [],
+    restrictFlags: raw.match(/restrict flags ([^\n]+)./)?.[1]?.split(/\s+/).filter(f => f.toLowerCase() !== 'none') ?? [],
+    material: raw.match(/Material is ([^\.\n]+)/)?.[1]?.toLowerCase() ?? '',
+    affectFlags: [...affectSet],
+    avgDamage: avgDice(dmg),
+    avgArmorClass: baseAC || acAffect ? avgArmorClass : null,
+
+    hitRoll: raw.match(/Affects hit roll by (-?\d+)/)
+      ? Number(RegExp.$1)
+      : null,
+
+    dmgRoll: raw.match(/Affects damage roll by (-?\d+)/)
+      ? Number(RegExp.$1)
+      : null,
+
+    spellPower: raw.match(/Affects spell power by (-?\d+)/)
+      ? Number(RegExp.$1)
+      : null,
+
+    holyPower: raw.match(/Affects holy power by (-?\d+)/)
+      ? Number(RegExp.$1)
+      : null,
+
+    mana: raw.match(/Affects mana by (-?\d+)/)
+      ? Number(RegExp.$1)
+      : null,
+
+    hp: raw.match(/Affects hp by (-?\d+)/)
+      ? Number(RegExp.$1)
+      : null,
+  };
+  item.wearSlot = inferWearSlot(item);
+  return item;
+}
+
+/* =========================================================
+   Filter Population
+   ========================================================= */
+function populateFilters() {
+  const areas = new Set(), slots = new Set(), wflags = new Set(), aflags = new Set(), rflags = new Set(), types = new Set(), weaponTypes = new Set(), materials = new Set();
+
+  items.forEach(i => {
+    if (i.area) areas.add(i.area);
+    if (i.wearSlot) slots.add(i.wearSlot);
+    if (i.type) types.add(i.type);
+    if (i.weaponType) weaponTypes.add(i.weaponType);
+    if (i.material) materials.add(i.material);
+    i.weaponFlags.forEach(f => wflags.add(f));
+    i.affectFlags.forEach(f => aflags.add(f));
+    i.restrictFlags.forEach(f => rflags.add(f));
+  });
+
+  // Wear slots
+  $('wearSlotOptions').innerHTML = [...slots].map(s => `
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" value="${s}" onchange="updateWearSlotButton();render()">
+      <label class="form-check-label small">${s}</label>
+    </div>
+  `).join('');
+
+  // Item types
+  $('typeOptions').innerHTML = [...types].sort().map(t => `
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" value="${t}" onchange="updateTypeButton();render()">
+      <label class="form-check-label small">${t}</label>
+    </div>
+  `).join('');
+
+  $('weaponTypeOptions').innerHTML = [...weaponTypes].sort().map(w => `
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" value="${w}" onchange="updateWeaponTypeButton();render()">
+      <label class="form-check-label small">${w}</label>
+    </div>
+  `).join('');
+
+  $('materialOptions').innerHTML = [...materials].sort().map(m => `
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" value="${m}"
+             onchange="updateMaterialButton(); render()">
+      <label class="form-check-label small">${m}</label>
+    </div>
+  `).join('');
+
+  // Weapon flags
+  wflags.forEach(f => $('weaponFlags').append(new Option(f, f)));
+
+  // Affect flags (sorted: affects first, immunities last)
+  [...aflags]
+    .sort((a, b) => {
+      const aImmune = a.startsWith('immune_');
+      const bImmune = b.startsWith('immune_');
+
+      // non-immunity first
+      if (aImmune !== bImmune) return aImmune ? 1 : -1;
+
+      // alphabetical within group
+      return a.localeCompare(b);
+    })
+    .forEach(f => $('affectFlags').append(new Option(f, f)));
+
+
+  // Restrict flags
+  rflags.forEach(f => $('restrictFlags').append(new Option(f, f)));
+
+  updateWearSlotButton();
+  updateTypeButton();
+  updateWeaponTypeButton();
+}
+
+/* =========================================================
+   Area Filter (dynamic)
+   ========================================================= */
+function populateAreaFilter() {
+  const areaSelect = $('areaFilter');
+  if (!areaSelect) return;
+
+  const filtered = getItemsMatchingFiltersExceptArea();
+  const statsMap = {};
+
+  filtered.forEach(i => {
+    statsMap[i.area] ??= { sum: 0, count: 0 };
+    statsMap[i.area].sum += i.level;
+    statsMap[i.area].count++;
+  });
+
+  Object.values(statsMap).forEach(s => s.avgLevel = Math.round(s.sum / s.count));
+
+  const sortMode = $('areaSort').value;
+  const areas = Object.keys(statsMap).sort((a, b) => {
+    if (sortMode === 'count') return statsMap[b].count - statsMap[a].count;
+    if (sortMode === 'avg') return statsMap[b].avgLevel - statsMap[a].avgLevel;
+    return a.localeCompare(b);
+  });
+
+  const prev = areaSelect.value;
+
+  areaSelect.innerHTML = '<option value="">All</option>';
+
+  areas.forEach(a => {
+    const s = statsMap[a];
+    areaSelect.append(
+      new Option(`[${s.avgLevel}] ${a} (${s.count} items)`, a)
+    );
+  });
+
+  // restore previous area only if still valid
+  if (prev && areas.includes(prev)) {
+    areaSelect.value = prev;
+  } else {
+    areaSelect.value = ''; // reset to All if invalid
+  }
+
+}
+
+/* =========================================================
+   Filtering + Render
+   ========================================================= */
+function getItemsMatchingFiltersExceptArea() {
+  const searchVal = $('search').value.toLowerCase();
+
+  const wear = [...document.querySelectorAll('#wearSlotOptions input:checked')]
+    .map(c => c.value);
+
+  const types = [...document.querySelectorAll('#typeOptions input:checked')]
+    .map(c => c.value);
+
+  const weaponTypes = [...document.querySelectorAll('#weaponTypeOptions input:checked')]
+    .map(c => c.value);
+
+  const materialOptions = [...document.querySelectorAll('#materialOptions input:checked')]
+    .map(c => c.value);
+
+  const wflags = [...$('weaponFlags').selectedOptions]
+    .map(o => o.value);
+
+  const aflags = [...$('affectFlags').selectedOptions]
+    .map(o => o.value);
+
+  const rflags = [...$('restrictFlags').selectedOptions]
+    .map(o => o.value);
+
+  const minAvg = Number($('minAvgDmg').value || 0);
+  const maxAvg = Number($('maxAvgDmg').value || Infinity);
+  const minHit = Number($('minHit').value || 0);
+  const minDmg = Number($('minDmg').value || 0);
+  const minHP  = Number($('minHP').value || 0);
+  const minLvl = Number($('minLevel').value || 0);
+  const maxLvl = Number($('maxLevel').value || Infinity);
+  const minSpell = Number($('minSpell').value || 0);
+  const minHoly  = Number($('minHoly').value || 0);
+  const minMana  = Number($('minMana').value || 0);
+  const minAC = Number($('minAC').value || 0);
+  const maxAC = Number($('maxAC').value || Infinity);
+
+  return items.filter(i => {
+
+    if (searchVal && !i.raw.toLowerCase().includes(searchVal)) return false;
+    if (wear.length && !wear.includes(i.wearSlot)) return false;
+    if (types.length && !types.includes(i.type)) return false;
+    if (wflags.length && !wflags.every(f => i.weaponFlags.includes(f))) return false;
+    if (aflags.length && !aflags.every(f => i.affectFlags.includes(f))) return false;
+    if (rflags.length && !rflags.every(f => i.restrictFlags.includes(f))) return false;
+    if ((i.avgDamage ?? 0) < minAvg || (i.avgDamage ?? 0) > maxAvg) return false;
+    if (i.level < minLvl || i.level > maxLvl) return false;
+    if (minHit > 0 && (i.hitRoll ?? 0) < minHit) return false;
+    if (minDmg > 0 && (i.dmgRoll ?? 0) < minDmg) return false;
+    if (minHP  > 0 && (i.hp ?? 0) < minHP) return false;
+    if (minMana > 0 && (i.mana ?? 0) < minMana) return false;
+    if (minSpell > 0 && (i.spellPower ?? 0) < minSpell) return false;
+    if (minHoly  > 0 && (i.holyPower ?? 0) < minHoly) return false;
+    if (weaponTypes.length && !weaponTypes.includes(i.weaponType || '')) return false;
+    if (minAC > 0 || maxAC < -Infinity) {
+      if (i.avgArmorClass == null) return false;
+      if (i.avgArmorClass < minAC) return false;
+      if (i.avgArmorClass > maxAC) return false;
+    }
+    if (materialOptions.length && !materialOptions.includes(i.material || '')) return false;
+
+    return true;
+  });
+}
+
+function render() {
+  const searchVal = $('search').value.toLowerCase();
+  const areaVal = $('areaFilter').value;
+
+  const wear = [...document.querySelectorAll('#wearSlotOptions input:checked')]
+    .map(c => c.value);
+
+  const types = [...document.querySelectorAll('#typeOptions input:checked')]
+    .map(c => c.value);
+
+  const weaponTypes = [...document.querySelectorAll('#weaponTypeOptions input:checked')]
+    .map(c => c.value);
+
+  const materialOptions = [...document.querySelectorAll('#materialOptions input:checked')]
+    .map(c => c.value);
+
+  const wflags = [...$('weaponFlags').selectedOptions]
+    .map(o => o.value);
+
+  const aflags = [...$('affectFlags').selectedOptions]
+    .map(o => o.value);
+
+  const rflags = [...$('restrictFlags').selectedOptions]
+    .map(o => o.value);
+
+  const minAvg = Number($('minAvgDmg').value || 0);
+  const maxAvg = Number($('maxAvgDmg').value || Infinity);
+  const minHit = Number($('minHit').value || 0);
+  const minDmg = Number($('minDmg').value || 0);
+  const minHP  = Number($('minHP').value || 0);
+  const minLvl = Number($('minLevel').value || 0);
+  const maxLvl = Number($('maxLevel').value || Infinity);
+  const minSpell = Number($('minSpell').value || 0);
+  const minHoly  = Number($('minHoly').value || 0);
+  const minMana  = Number($('minMana').value || 0);
+  const minAC = Number($('minAC').value || 0);
+  const maxAC = Number($('maxAC').value || Infinity);
+
+  const chips = [];
+
+  if (searchVal) chips.push(`Search: "${searchVal}"`);
+  if (areaVal) chips.push(`Area: ${areaVal}`);
+  if (types.length) chips.push(`Type: ${types.join(', ')}`);
+  if (weaponTypes.length) chips.push(`Weapon: ${weaponTypes.join(', ')}`);
+  if (materialOptions.length) chips.push(`Material: ${weaponTypes.join(', ')}`);
+  if (wear.length) chips.push(`Slot: ${wear.join(', ')}`);
+  if (wflags.length) chips.push(`Weapon Flags: ${wflags.join(', ')}`);
+  if (aflags.length) chips.push(`Affect Flags: ${aflags.join(', ')}`);
+  if (minHit) chips.push(`Min Hit: ${minHit}`);
+  if (minDmg) chips.push(`Min Dam: ${minDmg}`);
+  if (minHP) chips.push(`Min HP: ${minHP}`);
+  if (minAvg) chips.push(`Min Avg Dam: ${minAvg}`);
+  if (maxAvg && maxAvg < Infinity) chips.push(`Max Avg Dam: ${maxAvg}`);
+  if (minLvl) chips.push(`Min Lvl: ${minLvl}`);
+  if (maxLvl && maxLvl < Infinity) chips.push(`Max Lvl: ${maxLvl}`);
+  if (minAC && minAC > 0) chips.push(`Min AC: ${minAC}`);
+  if (maxAC && maxAC < Infinity) chips.push(`Max AC: ${maxAC}`);
+
+  $('activeFilters').innerHTML = chips
+    .map(c => `<span class="badge text-bg-secondary me-1">${c}</span>`)
+    .join('');
+
+  let filtered = items.filter(i => {
+
+    // apply filters
+    if (searchVal && !i.raw.toLowerCase().includes(searchVal)) return false;
+    if (areaVal && i.area !== areaVal) return false;
+    if (wear.length && !wear.includes(i.wearSlot)) return false;
+    if (types.length && !types.includes(i.type)) return false;
+    if (weaponTypes.length && !weaponTypes.includes(i.weaponType || '')) return false;
+    if (materialOptions.length && !materialOptions.includes(i.material || '')) return false;
+    if (wflags.length && !wflags.every(f => i.weaponFlags.includes(f))) return false;
+    if (aflags.length && !aflags.every(f => i.affectFlags.includes(f))) return false;
+    if (rflags.length && !rflags.every(f => i.restrictFlags.includes(f))) return false;
+    if ((i.avgDamage ?? 0) < minAvg || (i.avgDamage ?? 0) > maxAvg) return false;
+    if (i.level < minLvl || i.level > maxLvl) return false;
+    if (minAC > 0 || maxAC < -Infinity) {
+      if (i.avgArmorClass == null) return false;
+      if (i.avgArmorClass < minAC) return false;
+      if (i.avgArmorClass > maxAC) return false;
+    }
+    if (minHit   > 0 && (i.hitRoll ?? 0) < minHit) return false;
+    if (minDmg   > 0 && (i.dmgRoll ?? 0) < minDmg) return false;
+    if (minHP    > 0 && (i.hp ?? 0) < minHP) return false;
+    if (minMana  > 0 && (i.mana ?? 0) < minMana) return false;
+    if (minSpell > 0 && (i.spellPower ?? 0) < minSpell) return false;
+    if (minHoly  > 0 && (i.holyPower ?? 0) < minHoly) return false;
+
+    return true;
+  });
+
+  if (sortKey) {
+    filtered.sort((a, b) => {
+      const av = a[sortKey];
+      const bv = b[sortKey];
+
+      // nulls always go LAST
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+
+      // string compare
+      if (typeof av === 'string' && typeof bv === 'string') {
+        return sortAsc
+          ? av.localeCompare(bv)
+          : bv.localeCompare(av);
+      }
+
+      // numeric compare
+      return sortAsc ? av - bv : bv - av;
+    });
+  }
+
+  tbody.innerHTML = filtered.map((i,idx) => `
+    <tr class="item-row ${idx % 2 ? 'striped' : ''}">
+      <td>
+        <span
+          class="mud-output item-toggle"
+          data-id="${i.id}">
+          ${i.name}
+        </span>
+      </td>
+      <td class="text-end">${i.level}</td>
+      <td>${i.area}</td>
+      <td class="meta">${i.material}</td>
+      <td class="meta">${i.wearSlot}</td>
+      <td>${i.weaponType}</td>
+      <td class="text-end stat">${i.avgDamage ?? ''}</td>
+      <td>
+        ${[...i.weaponFlags].map(f =>
+          `<span class="badge text-bg-secondary me-1">⚔ ${f}</span>`
+        ).join('')}
+        ${[...i.affectFlags].map(f =>
+          `<span class="badge text-bg-secondary me-1">✨ ${f}</span>`
+        ).join('')}
+        ${[...i.restrictFlags].map(f =>
+          `<span class="badge text-bg-secondary me-1">✅ ${f}</span>`
+        ).join('')}
+      </td>
+      <td class="text-end stat hit">${i.hitRoll ?? ''}</td>
+      <td class="text-end stat dam">${i.dmgRoll ?? ''}</td>
+      <td class="text-end stat spell">${i.spellPower ?? ''}</td>
+      <td class="text-end stat holy">${i.holyPower ?? ''}</td>
+      <td class="text-end stat hp">${i.hp ?? ''}</td>
+      <td class="text-end stat ac">${i.avgArmorClass ?? ''}</td>
+    </tr>
+    <tr class="mud-row d-none" data-id="${i.id}">
+      <td colspan="14">
+        <div class="mud-output"><pre>${i.raw}</pre></div>
+      </td>
+    </tr>
+  `).join('');
+
+  stats.innerHTML = `
+    <span class="badge text-bg-primary">Total ${items.length}</span>
+    <span class="badge text-bg-success ms-1">Showing ${filtered.length}</span>
+    ${areaVal ? `<span class="badge text-bg-info ms-1">Avg Item Lvl ${areaStats[areaVal]?.avgLevel ?? '?'}</span>` : ''}
+  `;
+}
+
+/* =========================================================
+   Events
+   ========================================================= */
+let searchTimer;
+$('search').addEventListener('input', () => {
+  $('search').classList.add('border-warning');
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    $('search').classList.remove('border-warning');
+    populateAreaFilter();
+    render();
+  }, 1000);
+});
+
+let materialSearchTimer;
+$('materialFilterText').addEventListener('input', () => {
+  $('materialFilterText').classList.add('border-warning');
+  clearTimeout(materialSearchTimer);
+  materialSearchTimer = setTimeout(() => {
+    $('materialFilterText').classList.remove('border-warning');
+    populateAreaFilter();
+    render();
+  }, 1000);
+});
+
+tbody.addEventListener('click', e => {
+  const link = e.target.closest('.item-toggle');
+  if (!link) return;
+
+  e.preventDefault();
+  const id = link.dataset.id;
+  const row = tbody.querySelector(`.mud-row[data-id="${CSS.escape(id)}"]`);
+  if (row) row.classList.toggle('d-none');
+});
+
+$('themeToggle').onclick = () => {
+  const html = document.documentElement;
+  const dark = html.getAttribute('data-bs-theme') === 'dark';
+  html.setAttribute('data-bs-theme', dark ? 'light' : 'dark');
+  themeToggle.textContent = dark ? '☀ Light' : '🌙 Dark';
+};
+
+document.querySelectorAll('input:not(#search),select').forEach(e =>
+  e.addEventListener('input', () => {
+    populateAreaFilter();
+    render();
+  })
+);
+
+document.querySelectorAll('th[data-key]').forEach(th =>
+  th.addEventListener('click', () => {
+    sortAsc = sortKey === th.dataset.key ? !sortAsc : true;
+    sortKey = th.dataset.key;
+    document.querySelectorAll('.sort').forEach(s => s.textContent = '');
+    th.querySelector('.sort').textContent = sortAsc ? '▲' : '▼';
+    render();
+  })
+);
+
+$('fileInput').onchange = e => {
+  const r = new FileReader();
+  r.onload = () => {
+    items = JSON.parse(r.result).filter(o => o.details).map(o => parseItem(o.details));
+    computeAreaStats();
+    populateFilters();
+    populateAreaFilter();
+    render();
+
+    $('loadSection').classList.add('d-none');
+    $('app').classList.remove('d-none');
+  };
+
+  const scrollTopBtn = $('scrollTopBtn');
+
+  // show / hide button
+  window.addEventListener('scroll', () => {
+    scrollTopBtn.style.display =
+      window.scrollY > 400 ? 'block' : 'none';
+  });
+
+  // smooth scroll to top
+  scrollTopBtn.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  r.readAsText(e.target.files[0]);
+};
+</script>
+
+<button
+  id="scrollTopBtn"
+  class="btn btn-sm btn-outline-secondary position-fixed"
+  style="bottom: 20px; right: 20px; display: none; z-index: 1000;"
+  title="Scroll to top">
+  ⬆ Top
+</button>
+
+</body>
+</html>
