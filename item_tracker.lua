@@ -15,7 +15,7 @@
 
 ItemTracker = {
   name = "DM Item Tracker",
-  version = "1.0.1",
+  version = "1.1.0",
   author = "mudzereli",
 
   -- -------------------------------------------------------------------------
@@ -107,8 +107,6 @@ end
 -- ============================================================================
 
 function ItemTracker.initTooltip()
-  if ItemTracker.tooltip.win then return end
-
   local s = ItemTracker.settings
 
   local border = "itemTooltipBorder"
@@ -144,11 +142,9 @@ function ItemTracker.initTooltip()
 end
 
 function ItemTracker.hideTooltip()
-  if ItemTracker.tooltip.win then
-    hideWindow(ItemTracker.tooltip.header)
-    hideWindow(ItemTracker.tooltip.win)
-    hideWindow(ItemTracker.tooltip.border)
-  end
+  hideWindow(ItemTracker.tooltip.header)
+  hideWindow(ItemTracker.tooltip.border)
+  hideWindow(ItemTracker.tooltip.win)
 end
 
 -- ============================================================================
@@ -437,6 +433,7 @@ function ItemTracker.showTooltip(name)
   showWindow(t.header)
   showWindow(t.win)
 
+  registerAnonymousEventHandler("sysWindowMousePressEvent", "ItemTracker.hideTooltip")
 end
 
 -- ============================================================================
@@ -515,17 +512,6 @@ tempAlias(string.format("^%s\\s+(.+)$",ItemTracker.settings.alias), function()
   end
   cecho("<light_goldenrod>Refine your search.<white>\n")
 end)
-
--- ============================================================================
--- Global hide handler
--- ============================================================================
-
-if not ItemTracker._mouseHandler then
-  ItemTracker._mouseHandler =
-    registerAnonymousEventHandler("sysWindowMousePressEvent", function()
-      ItemTracker.hideTooltip()
-    end)
-end
 
 -- ============================================================================
 -- Startup
